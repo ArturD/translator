@@ -233,6 +233,7 @@ class AsyncWebsocketClient:
         while await self.open():
             try:
                 fin, opcode, data = await self.read_frame()
+                self.last_payload = data
             # except (ValueError, EOFError) as ex:
             except Exception as ex:
                 print('Exception in recv while reading frame:', ex)
