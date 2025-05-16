@@ -28,8 +28,6 @@ class GeminiSession:
         :param payload: The dictionary to send.
         :return: True if sent successfully, False otherwise.
         """
-        print("sending json")
-        print(payload)
         if not await self.ws.open():
             print("GeminiSession: Cannot send JSON, WebSocket not open.")
             return False
@@ -196,7 +194,7 @@ class GeminiSession:
                 print(f"GeminiSession: Received GoAway message: {server_message['goAway'].get('timeLeft', 'N/A')}. Server is disconnecting. Ending session.")
                 self.session_active = False
                 await self.ws.close()
-                return Chunk(is_end_turn=True)
+                return empty_chunk
             elif "usageMetadata" in server_message:
                 print(f"GeminiSession: Received usageMetadata: {server_message['usageMetadata']}. Ignoring.")
                 continue
