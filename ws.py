@@ -123,7 +123,7 @@ class AsyncWebsocketClient:
             )
 
         def send_header(header, *args):
-            self.sock.write(header % args + '\r\n')
+            self._sock_write_all(header % args + '\r\n')
 
         # Sec-WebSocket-Key is 16 bytes of random base64 encoded
         key = b.b2a_base64(bytes(r.getrandbits(8)
@@ -208,26 +208,26 @@ class AsyncWebsocketClient:
 
         if length < 126:  # 126 is magic value to use 2-byte length header
             byte2 |= length
-            self.sock.write(struct.pack('!BB', byte1, byte2))
+            self._sock_write_all(struct.pack('!BB', byte1, byte2))
 
         elif length < (1 << 16):  # Length fits in 2-bytes
             byte2 |= 126  # Magic code
-            self.sock.write(struct.pack('!BBH', byte1, byte2, length))
+            self._sock_write_all(struct.pack('!BBH', byte1, byte2, length))
 
         elif length < (1 << 64):
             byte2 |= 127  # Magic code
-            self.sock.write(struct.pack('!BBQ', byte1, byte2, length))
+            self._sock_write_all(struct.pack('!BBQ', byte1, byte2, length))
 
         else:
             raise ValueError()
 
         if mask:  # Mask is 4 bytes
             mask_bits = struct.pack('!I', r.getrandbits(32))
-            self.sock.write(mask_bits)
+            self._sock_write_all(mask_bits)
             data = bytes(b ^ mask_bits[i % 4]
                          for i, b in enumerate(data))
 
-        self.sock.write(data)
+        self._sock_write_all(data)
 
     async def recv(self):
         while await self.open():
@@ -282,3 +282,37 @@ class AsyncWebsocketClient:
         else:
             raise TypeError()
         self.write_frame(opcode, buf)
+
+    async def _sock_write_all(self, data: bytes):
+        """
+        Writes all bytes of data to the socket in a non-blocking manner.
+        Retries until all data is sent.
+        Args:
+            data: The bytes to write to the socket.
+        Raises:
+            OSError: For unrecoverable socket-related errors.
+        """
+        total_sent = 0
+        data_len = len(data)
+        while total_sent < data_len:
+            try:
+                # sock.write() returns the number of bytes written, or None if it would block
+                # or 0 if the buffer is full/connection is closed.
+                sent = self.sock.write(data[total_sent:])
+                if sent is None: # Would block, yield control
+                    await a.sleep_ms(self.delay_read)
+                    continue
+                elif sent == 0: # No bytes sent, buffer full or connection issue, yield and retry
+                    await a.sleep_ms(self.delay_read)
+                    continue
+                else:
+                    total_sent += sent
+            except OSError as e:
+                # Handle non-blocking errors (EAGAIN, EWOULDBLOCK)
+                if e.args[0] == errno.EAGAIN or e.args[0] == errno.EWOULDBLOCK:
+                    await a.sleep_ms(self.delay_read)
+                    continue
+                else:
+                    print(f"Error during write_all: {type(e).__name__}: {e}")
+                    raise # Re-raise other OS errors
+        return total_sent
