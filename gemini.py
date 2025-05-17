@@ -273,7 +273,8 @@ class GeminiClient:
                 }
             }
 
-            setup_payload["setup"]["generationConfig"] = generation_config
+            if generation_config:
+                setup_payload["setup"]["generationConfig"] = generation_config
             if system_instruction:
                 # System instruction is a Content object, which has a 'parts' field
                 setup_payload["setup"]["systemInstruction"] = {"parts": [{"text": system_instruction}]}

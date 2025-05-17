@@ -122,20 +122,20 @@ class AsyncWebsocketClient:
                 server_hostname=self.uri.hostname
             )
 
-        def send_header(header, *args):
-            self._sock_write_all(header % args + '\r\n')
+        async def send_header(header, *args):
+            await self._sock_write_all(header % args + b'\r\n')
 
         # Sec-WebSocket-Key is 16 bytes of random base64 encoded
         key = b.b2a_base64(bytes(r.getrandbits(8)
                                         for _ in range(16)))[:-1]
 
-        send_header(b'GET %s HTTP/1.1', self.uri.path or '/')
-        send_header(b'Host: %s:%s', self.uri.hostname, self.uri.port)
-        send_header(b'Connection: Upgrade')
-        send_header(b'Upgrade: websocket')
-        send_header(b'Sec-WebSocket-Key: %s', key)
-        send_header(b'Sec-WebSocket-Version: 13')
-        send_header(b'Origin: http://{hostname}:{port}'.format(
+        await send_header(b'GET %s HTTP/1.1', self.uri.path or '/')
+        await send_header(b'Host: %s:%s', self.uri.hostname, self.uri.port)
+        await send_header(b'Connection: Upgrade')
+        await send_header(b'Upgrade: websocket')
+        await send_header(b'Sec-WebSocket-Key: %s', key)
+        await send_header(b'Sec-WebSocket-Version: 13')
+        await send_header(b'Origin: http://{hostname}:{port}'.format(
             hostname=self.uri.hostname,
             port=self.uri.port)
         )
@@ -143,7 +143,7 @@ class AsyncWebsocketClient:
         for key, value in headers:
             send_header(b'%s: %s', key, value)
 
-        send_header(b'')
+        await send_header(b'')
 
         line = await self.a_readline()
         header = (line)[:-2]
@@ -192,7 +192,7 @@ class AsyncWebsocketClient:
 
         return fin, opcode, data
 
-    def write_frame(self, opcode, data=b''):
+    async def write_frame(self, opcode, data=b''):
         fin = True
         mask = True  # messages sent by client are masked
 
@@ -208,26 +208,26 @@ class AsyncWebsocketClient:
 
         if length < 126:  # 126 is magic value to use 2-byte length header
             byte2 |= length
-            self._sock_write_all(struct.pack('!BB', byte1, byte2))
+            await self._sock_write_all(struct.pack('!BB', byte1, byte2))
 
         elif length < (1 << 16):  # Length fits in 2-bytes
             byte2 |= 126  # Magic code
-            self._sock_write_all(struct.pack('!BBH', byte1, byte2, length))
+            await self._sock_write_all(struct.pack('!BBH', byte1, byte2, length))
 
         elif length < (1 << 64):
             byte2 |= 127  # Magic code
-            self._sock_write_all(struct.pack('!BBQ', byte1, byte2, length))
+            await self._sock_write_all(struct.pack('!BBQ', byte1, byte2, length))
 
         else:
             raise ValueError()
 
         if mask:  # Mask is 4 bytes
             mask_bits = struct.pack('!I', r.getrandbits(32))
-            self._sock_write_all(mask_bits)
+            await self._sock_write_all(mask_bits)
             data = bytes(b ^ mask_bits[i % 4]
                          for i, b in enumerate(data))
 
-        self._sock_write_all(data)
+        await self._sock_write_all(data)
 
     async def recv(self):
         while await self.open():
@@ -256,7 +256,7 @@ class AsyncWebsocketClient:
             elif opcode == OP_PING:
                 try:
                     # We need to send a pong frame
-                    self.write_frame(OP_PONG, data)
+                    await self.write_frame(OP_PONG, data)
 
                     # And then continue to wait for a data frame
                     continue
@@ -281,7 +281,7 @@ class AsyncWebsocketClient:
             opcode = OP_BYTES
         else:
             raise TypeError()
-        self.write_frame(opcode, buf)
+        await self.write_frame(opcode, buf)
 
     async def _sock_write_all(self, data: bytes):
         """
@@ -299,6 +299,7 @@ class AsyncWebsocketClient:
                 # sock.write() returns the number of bytes written, or None if it would block
                 # or 0 if the buffer is full/connection is closed.
                 sent = self.sock.write(data[total_sent:])
+                print("sent", sent)
                 if sent is None: # Would block, yield control
                     await a.sleep_ms(self.delay_read)
                     continue
