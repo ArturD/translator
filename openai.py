@@ -362,7 +362,7 @@ class OpenAIClient:
                         await session.end_session()
                         return None
                     if server_message.get("type") == "session.updated":
-                        print("OpenAIClient: session.updated received. VAD successfully disabled.")
+                        print(f"OpenAIClient: session.updated received. VAD successfully disabled. {server_message}")
                         break
                     else:
                         print(f"OpenAIClient: Received unexpected message during VAD setup: {server_message}. Waiting for session.updated.")
