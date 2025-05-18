@@ -245,6 +245,7 @@ class GeminiClient:
         :param websocket_kwargs: Additional keyword arguments to pass to AsyncWebsocketClient
                                  (e.g., certfile, keyfile, cafile, cert_reqs).
         """
+        self.api_key = api_key
         self.websocket_uri = websocket_uri
         self.websocket_kwargs = websocket_kwargs
         self.model = model
