@@ -218,9 +218,8 @@ class OpenAISession:
                     try:
                         voice_bytes = ubinascii.a2b_base64(server_message["delta"])
                         print(f"OpenAISession: Received speech chunk of {len(voice_bytes)} bytes.")
-                        return voice_bytes
                         # is_end_turn is False for speech chunks as they are part of a continuous stream
-                        #return Chunk(text=None, audio=voice_bytes, is_end_turn=False)
+                        return Chunk(text=None, audio=voice_bytes, is_end_turn=False)
                     except Exception as e:
                         print(f"OpenAISession: Error decoding base64 audio data: {e}")
                         continue # Continue waiting for valid data
