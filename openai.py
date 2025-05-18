@@ -345,7 +345,7 @@ class OpenAIClient:
                     "type": "session.update",
                     "session": {
                         "turn_detection": None, # Disable VAD
-                        "instructions": system_instruction,
+                        "instructions": system_instruction
                     }
                 }
                 if not await session._send_json(update_payload):
