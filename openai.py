@@ -346,9 +346,9 @@ class OpenAIClient:
                     "session": {
                         "turn_detection": None, # Disable VAD
                         "instructions": system_instruction
-                    },
-                    "input_audio_transcription": {
-                        "model": "whisper-1"
+                        "input_audio_transcription": {
+                            "model": "whisper-1"
+                        },
                     },
                 }
                 if not await session._send_json(update_payload):
