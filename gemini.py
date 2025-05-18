@@ -160,9 +160,11 @@ class GeminiSession:
                 chunk_is_end_turn=False
                 if "turnComplete" in server_content:
                   chunk_is_end_turn = server_content['turnComplete']
-                  return empty_chunk
-                else:
-                  print(f"no end turn: {list(server_content.keys())}")
+                  # Special handling for "turnComplete" messages that might not have audio
+                  if chunk_is_end_turn and not server_content.get("modelTurn"):
+                    print("GeminiSession: Received turnComplete without modelTurn, indicating end of turn.")
+                    return Chunk(text=None, audio=b"", bitrate=None, is_end_turn=True)
+
                 if "modelTurn" in server_content and "parts" in server_content["modelTurn"]:
                     for part in server_content["modelTurn"]["parts"]:
                         print("part", list(part.keys()))
@@ -223,36 +225,44 @@ class GeminiClient:
     # Official WebSocket URI for AI Studio Live
     DEFAULT_GEMINI_LIVE_URI = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
-    def __init__(self, websocket_uri: str = DEFAULT_GEMINI_LIVE_URI, **websocket_kwargs):
+    def __init__(self, model: str, websocket_uri: str = DEFAULT_GEMINI_LIVE_URI, 
+                 generation_config: dict = None, tools: list = None,
+                 realtime_input_config: dict = None,
+                 input_audio_transcription: dict = None,
+                 output_audio_transcription: dict = None,
+                 **websocket_kwargs):
         """
         Initializes the GeminiClient.
+        :param model: Required. The model's resource name (e.g., "models/gemini-pro").
         :param websocket_uri: The WebSocket URI for the AI Studio Live endpoint.
                               Defaults to the official Gemini Live API endpoint.
+        :param generation_config: Optional. Configuration for content generation.
+        :param tools: Optional. List of tools the model may use.
+        :param realtime_input_config: Optional. Configures handling of real-time input.
+        :param input_audio_transcription: Optional. If set, enables transcription of voice input.
+        :param output_audio_transcription: Optional. If set, enables transcription of model's audio output.
         :param websocket_kwargs: Additional keyword arguments to pass to AsyncWebsocketClient
                                  (e.g., certfile, keyfile, cafile, cert_reqs).
         """
         self.websocket_uri = websocket_uri
         self.websocket_kwargs = websocket_kwargs
+        self.model = model
+        self.generation_config = generation_config
+        self.tools = tools
+        self.realtime_input_config = realtime_input_config
+        self.input_audio_transcription = input_audio_transcription
+        self.output_audio_transcription = output_audio_transcription
         self._current_ws_client = None # Stores the active websocket client for a session
 
-    async def start_session(self, model: str, api_key: str, generation_config: dict = None,
-                            system_instruction: str = None, tools: list = None,
-                            realtime_input_config: dict = None,
-                            input_audio_transcription: dict = None,
-                            output_audio_transcription: dict = None) -> GeminiSession | None:
+    async def start_session(self, api_key: str, system_instruction: str = None) -> GeminiSession | None:
         """
         Starts a new Gemini AI Studio Live session.
         Establishes a WebSocket connection and sends the initial session configuration.
-        :param model: Required. The model's resource name (e.g., "models/gemini-pro").
-        :param generation_config: Optional. Configuration for content generation.
+        :param api_key: Required. Your API key for authentication.
         :param system_instruction: Optional. System instructions for the model.
-        :param tools: Optional. List of tools the model may use.
-        :param realtime_input_config: Optional. Configures handling of real-time input.
-        :param input_audio_transcription: Optional. If set, enables transcription of voice input.
-        :param output_audio_transcription: Optional. If set, enables transcription of model's audio output.
         :return: A GeminiSession instance if connection and setup are successful, None otherwise.
         """
-        print(f"GeminiClient: Starting new session to {self.websocket_uri} with model '{model}'...")
+        print(f"GeminiClient: Starting new session to {self.websocket_uri} with model '{self.model}'...")
         self._current_ws_client = ws.AsyncWebsocketClient(**self.websocket_kwargs) # Pass kwargs to WS client
         session = GeminiSession(self._current_ws_client) # Create session early to use its helpers
 
@@ -269,23 +279,23 @@ class GeminiClient:
             # Prepare initial BidiGenerateContentSetup message
             setup_payload = {
                 "setup": {
-                    "model": model,
+                    "model": self.model,
                 }
             }
 
-            if generation_config:
-                setup_payload["setup"]["generationConfig"] = generation_config
-            if system_instruction:
+            if self.generation_config:
+                setup_payload["setup"]["generationConfig"] = self.generation_config
+            if system_instruction: # system_instruction is still passed to start_session
                 # System instruction is a Content object, which has a 'parts' field
                 setup_payload["setup"]["systemInstruction"] = {"parts": [{"text": system_instruction}]}
-            if tools:
-                setup_payload["setup"]["tools"] = tools
-            if realtime_input_config:
-                setup_payload["setup"]["realtimeInputConfig"] = realtime_input_config
-            if input_audio_transcription:
-                setup_payload["setup"]["inputAudioTranscription"] = input_audio_transcription
-            if output_audio_transcription:
-                setup_payload["setup"]["outputAudioTranscription"] = output_audio_transcription
+            if self.tools:
+                setup_payload["setup"]["tools"] = self.tools
+            if self.realtime_input_config:
+                setup_payload["setup"]["realtimeInputConfig"] = self.realtime_input_config
+            if self.input_audio_transcription:
+                setup_payload["setup"]["inputAudioTranscription"] = self.input_audio_transcription
+            if self.output_audio_transcription:
+                setup_payload["setup"]["outputAudioTranscription"] = self.output_audio_transcription
 
             print("GeminiClient: Sending session setup message...")
             if not await session._send_json(setup_payload):
@@ -327,4 +337,3 @@ class GeminiClient:
             self._current_ws_client = None
         else:
             print("GeminiClient: No active WebSocket client to close.")
-
