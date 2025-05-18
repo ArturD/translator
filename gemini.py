@@ -225,7 +225,7 @@ class GeminiClient:
     # Official WebSocket URI for AI Studio Live
     DEFAULT_GEMINI_LIVE_URI = "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
 
-    def __init__(self, model: str, websocket_uri: str = DEFAULT_GEMINI_LIVE_URI, 
+    def __init__(self, api_key: str, model: str, websocket_uri: str = DEFAULT_GEMINI_LIVE_URI, 
                  generation_config: dict = None, tools: list = None,
                  realtime_input_config: dict = None,
                  input_audio_transcription: dict = None,
@@ -233,6 +233,7 @@ class GeminiClient:
                  **websocket_kwargs):
         """
         Initializes the GeminiClient.
+        :param api_key: Required. The api key.
         :param model: Required. The model's resource name (e.g., "models/gemini-pro").
         :param websocket_uri: The WebSocket URI for the AI Studio Live endpoint.
                               Defaults to the official Gemini Live API endpoint.
@@ -254,11 +255,10 @@ class GeminiClient:
         self.output_audio_transcription = output_audio_transcription
         self._current_ws_client = None # Stores the active websocket client for a session
 
-    async def start_session(self, api_key: str, system_instruction: str = None) -> GeminiSession | None:
+    async def start_session(self, system_instruction: str = None) -> GeminiSession | None:
         """
         Starts a new Gemini AI Studio Live session.
         Establishes a WebSocket connection and sends the initial session configuration.
-        :param api_key: Required. Your API key for authentication.
         :param system_instruction: Optional. System instructions for the model.
         :return: A GeminiSession instance if connection and setup are successful, None otherwise.
         """
@@ -268,7 +268,7 @@ class GeminiClient:
 
         try:
             # Perform WebSocket handshake
-            uri = self.websocket_uri + "?key="+api_key
+            uri = self.websocket_uri + "?key="+self.api_key
             print(f"connecting to {uri}")
             await self._current_ws_client.handshake(uri) # Handshake takes URI, kwargs handled in client init
             if not await self._current_ws_client.open():
