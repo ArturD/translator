@@ -70,7 +70,7 @@ class OpenAISession:
                 # Continue waiting for text/JSON
                 continue
 
-    async def send_text_input(self, txt: str, turnComplete: bool = False) -> bool:
+    async def add_text_chunk(self, txt: str, turnComplete: bool = False) -> bool:
         """
         Sends a text input as a conversation item to the OpenAI Realtime API.
         If VAD is disabled and turnComplete is True, it will automatically trigger a response.
@@ -104,7 +104,7 @@ class OpenAISession:
             await self._trigger_response(modalities=["text", "audio"]) # Default to both text and audio
         return success
 
-    async def send_audio_chunk(self, voice_bytes: bytes, turnComplete: bool = False) -> bool:
+    async def add_voice_chunk(self, voice_bytes: bytes, turnComplete: bool = False) -> bool:
         """
         Sends a voice chunk (raw bytes) to the OpenAI Realtime API's audio buffer.
         If VAD is disabled and turnComplete is True, it will automatically commit the audio,
@@ -176,6 +176,7 @@ class OpenAISession:
                            Defaults to both text and audio if not specified.
         :return: True if sent successfully, False otherwise.
         """
+        print("trigger response")
         if not self.session_active:
             print("OpenAISession not active. Call OpenAIClient.start_session() first.")
             return False
@@ -211,14 +212,15 @@ class OpenAISession:
 
             message_type = server_message.get("type")
 
-            if message_type == "speech":
+            if message_type == "response.audio.delta":
                 # This message type contains audio data
-                if "audio" in server_message:
+                if "delta" in server_message:
                     try:
-                        voice_bytes = ubinascii.a2b_base64(server_message["audio"])
+                        voice_bytes = ubinascii.a2b_base64(server_message["delta"])
                         print(f"OpenAISession: Received speech chunk of {len(voice_bytes)} bytes.")
+                        return voice_bytes
                         # is_end_turn is False for speech chunks as they are part of a continuous stream
-                        return Chunk(text=None, audio=voice_bytes, is_end_turn=False)
+                        #return Chunk(text=None, audio=voice_bytes, is_end_turn=False)
                     except Exception as e:
                         print(f"OpenAISession: Error decoding base64 audio data: {e}")
                         continue # Continue waiting for valid data
@@ -249,7 +251,7 @@ class OpenAISession:
                 continue
             elif message_type == "error":
                 # Error message from the API
-                print(f"OpenAISession: Received error message: {server_message.get('message', 'Unknown error')}. Ending session.")
+                print(f"OpenAISession: Received error message: {server_message}. Ending session.")
                 self.session_active = False
                 await self.ws.close()
                 return empty_chunk
@@ -288,7 +290,7 @@ class OpenAIClient:
     DEFAULT_OPENAI_REALTIME_URI = "wss://api.openai.com/v1/realtime"
 
     def __init__(self, api_key: str, model: str, websocket_uri: str = DEFAULT_OPENAI_REALTIME_URI, 
-                 vad_disabled: bool = False, **websocket_kwargs):
+                 vad_disabled: bool = True, **websocket_kwargs):
         """
         Initializes the OpenAIClient.
         :param api_key: Required. Your OpenAI API key.
@@ -322,13 +324,13 @@ class OpenAIClient:
             uri = f"{self.websocket_uri}?model={self.model}"
             
             # Prepare headers for authentication and beta flag
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "OpenAI-Beta": "realtime=v1",
-            }
+            headers = [
+                ("Authorization", f"Bearer {self.api_key}"),
+                ("OpenAI-Beta", "realtime=v1"),
+            ]
 
             print(f"OpenAIClient: Connecting to {uri} with headers...")
-            await self._current_ws_client.handshake(uri, extra_headers=headers) # Pass headers during handshake
+            await self._current_ws_client.handshake(uri, headers=headers) # Pass headers during handshake
             
             if not await self._current_ws_client.open():
                 print("OpenAIClient: WebSocket handshake failed, connection not open.")
@@ -371,6 +373,7 @@ class OpenAIClient:
         except Exception as e:
             print(f"OpenAIClient: Failed to start session due to an exception: {e}")
             await session.end_session() # Ensure cleanup on failure
+            raise
             return None
 
     async def close_client(self):

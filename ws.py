@@ -141,7 +141,7 @@ class AsyncWebsocketClient:
         )
 
         for key, value in headers:
-            send_header(b'%s: %s', key, value)
+            await send_header(b'%s: %s', key, value)
 
         await send_header(b'')
 
