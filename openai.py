@@ -236,7 +236,7 @@ class OpenAISession:
                 else:
                     print(f"OpenAISession: 'chunk' message without 'text' data: {server_message}. Ignoring.")
                     continue
-            elif message_type == "turn.end":
+            elif message_type == "response.output_item.done":
                 # Explicit signal for end of a turn
                 print("OpenAISession: Received 'turn.end' message. Signaling end of turn.")
                 return Chunk(text=None, audio=None, is_end_turn=True)
