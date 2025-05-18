@@ -345,7 +345,7 @@ class OpenAIClient:
                     "type": "session.update",
                     "session": {
                         "turn_detection": None, # Disable VAD
-                        "instructions": system_instruction
+                        "instructions": system_instruction,
                         "input_audio_transcription": {
                             "model": "whisper-1"
                         },
