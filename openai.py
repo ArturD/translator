@@ -309,7 +309,7 @@ class OpenAIClient:
         self.vad_disabled = vad_disabled # Store VAD state
         self._current_ws_client = None # Stores the active websocket client for a session
 
-    async def start_session(self, system_instructions: str | None = None) -> OpenAISession | None:
+    async def start_session(self, system_instruction: str | None = None) -> OpenAISession | None:
         """
         Starts a new OpenAI Realtime API session.
         Establishes a WebSocket connection and configures VAD if specified.
@@ -368,8 +368,8 @@ class OpenAIClient:
                         print(f"OpenAIClient: Received unexpected message during VAD setup: {server_message}. Waiting for session.updated.")
                         # Continue waiting for session.updated or an error
 
-            if system_instructions:
-                session.add_text_chunk(system_instructions)
+            if system_instruction:
+                session.add_text_chunk(system_instruction)
             return session
 
         except Exception as e:
