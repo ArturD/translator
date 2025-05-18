@@ -344,7 +344,8 @@ class OpenAIClient:
                 update_payload = {
                     "type": "session.update",
                     "session": {
-                        "turn_detection": None # Disable VAD
+                        "turn_detection": None, # Disable VAD
+                        "instructions: system_instruction,
                     }
                 }
                 if not await session._send_json(update_payload):
@@ -367,8 +368,6 @@ class OpenAIClient:
                         print(f"OpenAIClient: Received unexpected message during VAD setup: {server_message}. Waiting for session.updated.")
                         # Continue waiting for session.updated or an error
 
-            if system_instruction:
-                session.add_text_chunk(system_instruction)
             return session
 
         except Exception as e:
